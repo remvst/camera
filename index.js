@@ -5,6 +5,13 @@ const Timeline = require('@remvst/animate.js').Timeline;
 const Rectangle = require('@remvst/geometry/rectangle');
 const Random = require('@remvst/random');
 
+function inRectangle(x, y, rectX, rectY, rectWidth, rectHeight, deltaX = 0, deltaY = 0) {
+    return x + deltaX >= rectX &&
+           y + deltaY >= rectY &&
+           x - deltaX <= rectX + rectWidth &&
+           y - deltaY <= rectY + rectHeight;
+}
+
 class Camera {
 
     constructor(options) {
@@ -160,7 +167,7 @@ class Camera {
     isPointVisible(x, y, deltaX = 0, deltaY = 0) {
         const visibleRectangle = this.visibleRectangle();
 
-        return Math.inRectangle(
+        return inRectangle(
             x,
             y,
             visibleRectangle.x,
