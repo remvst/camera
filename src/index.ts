@@ -1,20 +1,76 @@
 'use strict';
 
-const Animation = require('@remvst/animate.js').Animation;
-const Timeline = require('@remvst/animate.js').Timeline;
-const Rectangle = require('@remvst/geometry/rectangle');
-const Random = require('@remvst/random');
+import { Animation, Timeline, InterpolationPool, Easing } from '@remvst/animate.js';
+import { Rectangle } from '@remvst/geometry';
+import { randInt } from '@remvst/random';
 
-function inRectangle(x, y, rectX, rectY, rectWidth, rectHeight, deltaX = 0, deltaY = 0) {
+function pointDistance(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number
+) {
+    return Math.sqrt(Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2));
+};
+
+function between(
+    a: number,
+    b: number,
+    c: number
+) {
+    if (b < a) {
+        return a;
+    } if (b > c) {
+        return c;
+    }
+    return b;
+};
+
+function inRectangle(
+    x: number,
+    y: number,
+    rectX: number,
+    rectY: number,
+    rectWidth: number,
+    rectHeight: number,
+    deltaX: number = 0,
+    deltaY: number = 0
+) {
     return x + deltaX >= rectX &&
            y + deltaY >= rectY &&
            x - deltaX <= rectX + rectWidth &&
            y - deltaY <= rectY + rectHeight;
 }
 
-class Camera {
+export interface Point {
+    x: number;
+    y: number;
+}
 
-    constructor(options) {
+export default class Camera {
+
+    viewport: Rectangle;
+    bounds: Rectangle;
+    private reusedVisibleRectangle: Rectangle;
+    private readonly interpolationPool: InterpolationPool;
+
+    target: Point | null;
+    center: Point;
+    position: Point;
+    idealCenter: Point;
+
+    shakeOffset: Point;
+    nextShakeUpdate: number;
+    shakePower: number;
+    frozen: boolean;
+    zoom: number;
+    shakeTimeline: Timeline | null;
+
+    constructor(options: {
+        viewport: Rectangle,
+        bounds: Rectangle,
+        interpolationPool: InterpolationPool
+    }) {
         this.viewport = options.viewport;
         this.bounds = options.bounds;
         this.interpolationPool = options.interpolationPool;
@@ -25,12 +81,8 @@ class Camera {
         this.shakeOffset = {'x': 0, 'y': 0};
         this.nextShakeUpdate = 0;
         this.shakePower = 0;
-        this.offsetX = 0;
-        this.offsetY = 0;
-        this.facingOffset = 50;
         this.frozen = false;
         this.zoom = 1;
-        this.offsetDistanceFactor = 400;
         this.shakeTimeline = null;
         this.center = this.withinBounds({ 'x': 0, 'y': 0 });
         this.position = { 'x': 0, 'y': 0 };
@@ -44,7 +96,7 @@ class Camera {
         };
     }
 
-    shake(power, duration) {
+    shake(power: number, duration: number) {
         if (this.shakeTimeline) {
             this.shakeTimeline.cancel();
         }
@@ -53,21 +105,21 @@ class Camera {
 
         this.shakeTimeline = new Timeline()
             .wait(duration)
-            .add(() => this.shakePower = 0)
+            .append(() => this.shakePower = 0)
             .run(this.interpolationPool);
     }
 
-    follow(target) {
+    follow(target: Point) {
         this.target = target;
     }
 
-    cycle(e) {
+    cycle(elapsed: number) {
         const targetPosition = this.idealTargetPosition();
 
-        const distance = Math.distance(targetPosition, this.idealCenter),
+        const distance = pointDistance(targetPosition.x, targetPosition.y, this.idealCenter.x, this.idealCenter.y),
             speed = Math.max(1, distance / 0.2),
             angle = Math.atan2(targetPosition.y - this.idealCenter.y, targetPosition.x - this.idealCenter.x),
-            appliedDistance = Math.min(speed * e, distance);
+            appliedDistance = Math.min(speed * elapsed, distance);
 
         this.idealCenter.x += Math.cos(angle) * appliedDistance;
         this.idealCenter.y += Math.sin(angle) * appliedDistance;
@@ -76,27 +128,27 @@ class Camera {
 
         const sizeOnWorld = this.visibleRectangleSizeInWorldUnits();
 
-        this.nextShakeUpdate -= e;
+        this.nextShakeUpdate -= elapsed;
         if (this.nextShakeUpdate <= 0) {
             this.nextShakeUpdate = 1 / 60;
-            this.shakeOffset.x = Random.randInt(-50, 50) * this.shakePower;
-            this.shakeOffset.y = Random.randInt(-50, 50) * this.shakePower;
+            this.shakeOffset.x = randInt(-50, 50) * this.shakePower;
+            this.shakeOffset.y = randInt(-50, 50) * this.shakePower;
         }
 
         this.position.x = ~~(this.shakeOffset.x + this.center.x - sizeOnWorld.width / 2);
         this.position.y = ~~(this.shakeOffset.y + this.center.y - sizeOnWorld.height / 2);
     }
 
-    withinBounds(position) {
+    withinBounds(position: Point) {
         const sizeOnWorld = this.visibleRectangleSizeInWorldUnits();
 
         return {
-            'x': ~~Math.between(
+            'x': ~~between(
                 this.bounds.x + sizeOnWorld.width / 2,
                 position.x,
                 this.bounds.x + this.bounds.width - sizeOnWorld.width / 2
             ),
-            'y': ~~Math.between(
+            'y': ~~between(
                 this.bounds.y + sizeOnWorld.height / 2,
                 position.y,
                 this.bounds.y + this.bounds.height - sizeOnWorld.height / 2
@@ -109,26 +161,17 @@ class Camera {
             return this.center;
         }
 
-        const regular = {
-            'x': this.target.x + (this.target.facing || 0) * this.facingOffset,
-            'y': this.target.y
-        };
-
         return {
-            'x': regular.x + this.offsetX * this.offsetDistanceFactor / this.zoom,
-            'y': regular.y + this.offsetY * this.offsetDistanceFactor / this.zoom
+            'x': this.target.x,
+            'y': this.target.y
         };
     }
 
-    containsPoint(x, y, delta) {
+    containsPoint(x: number, y: number, delta: number = 0) {
         return x >= this.position.x - delta &&
                y >= this.position.y - delta &&
                x <= this.position.x + this.viewport.width / this.zoom + delta &&
                y <= this.position.y + this.viewport.height / this.zoom + delta;
-    }
-
-    between(a, b, c) {
-        return a <= b && b <= c;
     }
 
     visibleRectangle() {
@@ -150,21 +193,29 @@ class Camera {
         this.frozen = true;
     }
 
-    positionOnScreen(x, y) {
+    positionOnScreen(
+        x: number,
+        y: number
+    ) {
         return {
             'x': x - this.position.x,
             'y': y - this.position.y
         };
     }
 
-    zoomTo(zoom, duration) {
+    zoomTo(zoom: number, duration: number) {
         new Animation(this)
-            .interp('zoom', this.zoom, zoom, Math.easeInOutSine)
+            .interp('zoom', this.zoom, zoom, Easing.easeInOutQuad)
             .during(duration)
             .run(this.interpolationPool);
     }
 
-    isPointVisible(x, y, deltaX = 0, deltaY = 0) {
+    isPointVisible(
+        x: number,
+        y: number,
+        deltaX: number = 0,
+        deltaY: number = 0
+    ): boolean {
         const visibleRectangle = this.visibleRectangle();
 
         return inRectangle(
@@ -180,5 +231,3 @@ class Camera {
     }
 
 }
-
-module.exports = Camera;

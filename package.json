@@ -1,16 +1,17 @@
 {
   "name": "@remvst/camera",
-  "version": "1.0.1",
-  "description": "",
+  "version": "2.0.0",
+  "description": "Basic camera handling",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc"
   },
   "author": "",
   "license": "",
   "dependencies": {
-    "@remvst/animate.js": "^1.0.1",
-    "@remvst/geometry": "^1.0.0",
-    "@remvst/random": "^1.0.0"
+    "@remvst/animate.js": "^2.0.0",
+    "@remvst/geometry": "^2.0.0",
+    "@remvst/random": "^2.0.1",
+    "typescript": "^4.1.3"
   }
 }
