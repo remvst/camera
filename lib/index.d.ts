@@ -1,5 +1,6 @@
 import { Timeline, InterpolationPool } from '@remvst/animate.js';
 import { Rectangle } from '@remvst/geometry';
+export declare function reachTargetWithin(duration: number): (position: Point, targetPosition: Point) => number;
 export interface Point {
     x: number;
     y: number;
@@ -7,6 +8,7 @@ export interface Point {
 export default class Camera {
     viewport: Rectangle;
     bounds: Rectangle;
+    speed: (position: Point, targetPosition: Point) => number;
     private reusedVisibleRectangle;
     private readonly interpolationPool;
     target: Point | null;
@@ -23,6 +25,7 @@ export default class Camera {
         viewport: Rectangle;
         bounds: Rectangle;
         interpolationPool: InterpolationPool;
+        speed: ((position: Point, targetPosition: Point) => number) | null;
     });
     visibleRectangleSizeInWorldUnits(): {
         width: number;

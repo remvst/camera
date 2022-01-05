@@ -1,6 +1,6 @@
 {
   "name": "@remvst/camera",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Basic camera handling",
   "main": "lib/index.js",
   "scripts": {

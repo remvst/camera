@@ -42,6 +42,13 @@ function inRectangle(
            y - deltaY <= rectY + rectHeight;
 }
 
+export function reachTargetWithin(duration: number): (position: Point, targetPosition: Point) => number {
+    return (position, targetPosition): number => {
+        const distance = pointDistance(targetPosition.x, targetPosition.y, position.x, position.y);
+        return Math.max(1, distance / duration);
+    };
+}
+
 export interface Point {
     x: number;
     y: number;
@@ -51,6 +58,7 @@ export default class Camera {
 
     viewport: Rectangle;
     bounds: Rectangle;
+    speed: (position: Point, targetPosition: Point) => number = reachTargetWithin(0.2);
     private reusedVisibleRectangle: Rectangle;
     private readonly interpolationPool: InterpolationPool;
 
@@ -69,11 +77,13 @@ export default class Camera {
     constructor(options: {
         viewport: Rectangle,
         bounds: Rectangle,
-        interpolationPool: InterpolationPool
+        interpolationPool: InterpolationPool,
+        speed: ((position: Point, targetPosition: Point) => number) | null,
     }) {
         this.viewport = options.viewport;
         this.bounds = options.bounds;
         this.interpolationPool = options.interpolationPool;
+        this.speed = options.speed || this.speed;
 
         this.reusedVisibleRectangle = new Rectangle(0, 0, 0, 0);
 
@@ -117,7 +127,7 @@ export default class Camera {
         const targetPosition = this.idealTargetPosition();
 
         const distance = pointDistance(targetPosition.x, targetPosition.y, this.idealCenter.x, this.idealCenter.y),
-            speed = Math.max(1, distance / 0.2),
+            speed = this.speed(this.idealCenter, targetPosition),
             angle = Math.atan2(targetPosition.y - this.idealCenter.y, targetPosition.x - this.idealCenter.x),
             appliedDistance = Math.min(speed * elapsed, distance);
 
